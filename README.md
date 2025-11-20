@@ -1,36 +1,134 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI-Enhanced Packaging Scheduler (AIPS)
+
+A next-generation, real-time manufacturing scheduler that transforms complex production planning into an intuitive, visual experience.
+
+## Tech Stack
+
+- **Frontend:** Next.js 14+ with TypeScript
+- **UI:** Ant Design 5.x + Tailwind CSS
+- **State Management:** Zustand + TanStack Query
+- **Data Visualization:** Recharts + D3.js
+- **Backend:** tRPC + Prisma ORM
+- **Database:** PostgreSQL 16
+- **Authentication:** Clerk
+- **Optimization:** Python FastAPI + Google OR-Tools
+- **Real-time:** Socket.io
+- **Deployment:** Vercel (Frontend) + Railway (Backend)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL 16
+- Python 3.11+ (for optimizer service)
+
+### Installation
 
 ```bash
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env
+
+# Run database migrations
+npx prisma migrate dev
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+aips/
+├── app/                    # Next.js app router pages
+│   ├── skus/              # SKU management
+│   ├── changeovers/       # Changeover matrix
+│   ├── schedule/          # Scheduling board
+│   └── analytics/         # Analytics dashboard
+├── components/            # React components
+├── lib/                   # Utility functions
+│   └── mock-data/         # Mock data generators
+├── types/                 # TypeScript type definitions
+├── server/                # Backend API
+│   └── api/
+│       └── routers/       # tRPC routers
+├── prisma/                # Database schema
+└── packages/
+    └── optimizer/         # Python optimizer service
+```
 
-## Learn More
+## Features
 
-To learn more about Next.js, take a look at the following resources:
+### Phase 1: Visual Prototype (Current)
+- ✅ SKU Management Interface
+- ✅ Changeover Matrix Editor
+- ✅ Interactive Scheduling Dashboard
+- ✅ Flow Visualization
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Phase 2: Backend Infrastructure (Upcoming)
+- ⏳ Clerk Authentication
+- ⏳ Prisma Database Integration
+- ⏳ tRPC API Endpoints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Phase 3: Optimization Engine (Upcoming)
+- ⏳ Python FastAPI Service
+- ⏳ CP-SAT Constraint Solver
+- ⏳ ML Changeover Prediction
 
-## Deploy on Vercel
+### Phase 4-6: Advanced Features (Upcoming)
+- ⏳ Real-time Collaboration
+- ⏳ Analytics Dashboard
+- ⏳ Scenario Comparison
+- ⏳ Production Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Run linter
+npm run lint
+
+# Type check
+npm run type-check
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+## Testing
+
+```bash
+# Run unit tests
+npm test
+
+# Run E2E tests
+npm run test:e2e
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+## Deployment
+
+The application is deployed using:
+- **Frontend:** Vercel (auto-deploy from main branch)
+- **Backend/Database:** Railway
+- **Optimizer:** Railway Workers
+
+## Contributing
+
+1. Create a feature branch
+2. Make your changes
+3. Run tests and linting
+4. Submit a pull request
+
+## License
+
+Proprietary - Digital Manufacturing Operations

@@ -1,0 +1,436 @@
+// AIPS - AI-Enhanced Packaging Scheduler Database Schema
+// Generated from Technical PRD
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum CleaningCategory {
+  A  // No cleaning required (same product)
+  B  // Basic rinse
+  C  // Standard wash
+  D  // Deep clean/allergen
+}
+
+enum ChangeoverComplexity {
+  SIMPLE    // < 15 min
+  MODERATE  // 15-30 min
+  COMPLEX   // 30-60 min
+  CRITICAL  // > 60 min
+}
+
+enum CleaningType {
+  NONE
+  RINSE
+  WASH
+  SANITIZE
+  ALLERGEN_CLEAN
+  FULL_BREAKDOWN
+}
+
+enum OrderStatus {
+  PLANNED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BlockStatus {
+  PLANNED
+  READY
+  CHANGEOVER
+  RUNNING
+  COMPLETED
+  DELAYED
+}
+
+enum SKUStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+  DEVELOPMENT
+  SEASONAL
+}
+
+enum LineStatus {
+  ACTIVE
+  MAINTENANCE
+  OFFLINE
+  LIMITED
+}
+
+enum ScheduleStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+// Product Family Model
+model ProductFamily {
+  id                String   @id @default(cuid())
+  code              String   @unique  // A, B, C, D, E, F, G, H, I, J
+  name              String
+  description       String?
+  color             String   // Hex color for UI
+  changeoverTier    Int      // 1-5, for complexity
+  skus              SKU[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([code])
+}
+
+// SKU Model - Complete product definition
+model SKU {
+  id                String          @id @default(cuid())
+  code              String          @unique
+  name              String
+  description       String?
+  productFamily     ProductFamily   @relation(fields: [familyId], references: [id])
+  familyId          String
+  category          String
+  subCategory       String?
+  
+  // Production characteristics - stored as JSON
+  productionRate    Float           // Units per hour
+  minBatchSize      Float
+  maxBatchSize      Float
+  setupTime         Int             // Minutes
+  cycleTime         Float           // Seconds per unit
+  yieldPercentage   Float           // 0-100
+  qualityGrade      String          // premium, standard, economy
+  
+  // Physical characteristics - stored as JSON
+  packSize          Float?
+  packUnit          String?         // EA, CS, PLT
+  weight            Float?          // grams
+  volume            Float?          // milliliters
+  color             String?
+  flavor            String?
+  viscosity         String?         // LOW, MEDIUM, HIGH
+  allergens         String[]        // Array of allergen codes
+  packaging         String?         // bottle, can, pouch, box, bulk
+  temperature       String?         // ambient, chilled, frozen
+  
+  // Planning parameters
+  leadTime          Int             // Hours
+  safetyStock       Float
+  reorderPoint      Float
+  moq               Float?          // Minimum order quantity
+  maxInventoryDays  Int?
+  shelfLife         Int?            // Days
+  cleaningCategory  CleaningCategory
+  
+  // Financial
+  unitCost          Float
+  sellingPrice      Float
+  margin            Float
+  priority          String          // high, medium, low
+  
+  // Metadata
+  status            SKUStatus       @default(ACTIVE)
+  attributes        Json?           // Additional flexible attributes
+  metadata          Json?           // Extra metadata
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdBy         String          @default("system")
+  lastModifiedBy    String          @default("system")
+  version           Int             @default(1)
+  
+  // Relations
+  orders            ProductionOrder[]
+  changeoverFrom    ChangeoverMatrix[] @relation("FromSKU")
+  changeoverTo      ChangeoverMatrix[] @relation("ToSKU")
+  lineCompatibility ProductionLineSKU[]
+
+  @@index([familyId])
+  @@index([code])
+  @@index([cleaningCategory])
+  @@index([status])
+}
+
+// Changeover Matrix - Time and complexity for SKU transitions
+model ChangeoverMatrix {
+  id                String              @id @default(cuid())
+  fromSKUId         String
+  fromSKU           SKU                 @relation("FromSKU", fields: [fromSKUId], references: [id], onDelete: Cascade)
+  toSKUId           String
+  toSKU             SKU                 @relation("ToSKU", fields: [toSKUId], references: [id], onDelete: Cascade)
+  
+  // Time components (minutes)
+  drainTime         Int                 @default(0)
+  cleanTime         Int                 @default(0)
+  setupTime         Int                 @default(0)
+  flushTime         Int                 @default(0)
+  totalTime         Int                 // Computed total
+  
+  // Complexity and requirements
+  complexity        ChangeoverComplexity
+  cleaningType      CleaningType
+  
+  // Resources required
+  requiredSkills    String[]            // Skill codes needed
+  requiredTools     String[]            // Special tools/equipment
+  laborCount        Int                 @default(1)
+  
+  // Validation and history
+  validated         Boolean             @default(false)
+  validatedBy       String?
+  validatedAt       DateTime?
+  lastActualTime    Int?                // Last recorded actual time
+  avgActualTime     Float?              // Rolling average
+  standardDeviation Float?              // For confidence intervals
+  
+  // Conditional rules
+  conditions        Json?               // JSON for complex conditions
+  notes             String?
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  @@unique([fromSKUId, toSKUId])
+  @@index([complexity])
+  @@index([totalTime])
+  @@index([fromSKUId])
+  @@index([toSKUId])
+}
+
+// Production Line Model
+model ProductionLine {
+  id                String              @id @default(cuid())
+  code              String              @unique // L1, L2, etc
+  name              String
+  description       String?
+  
+  // Capacity and performance
+  maxRate           Float               // Units per hour
+  efficiency        Float               @default(0.85) // 0-1
+  availability      Float               @default(0.90) // 0-1
+  oeeTarget         Float               @default(0.85) // 0-1
+  currentOEE        Float?              // Current OEE
+  
+  // Technical specifications - stored as JSON
+  capabilities      String[]            // What this line can do
+  restrictions      String[]            // What it cannot do
+  certifications    String[]            // Quality certifications
+  equipment         String[]            // Special equipment
+  
+  // Operating parameters
+  shiftPattern      String              // "24/7", "2-shift", "day-only"
+  crewSize          Int                 @default(4)
+  skillRequirements String[]
+  
+  // Status and maintenance
+  status            LineStatus          @default(ACTIVE)
+  maintenanceSchedule Json?             // Maintenance windows
+  
+  // Metrics
+  uptime            Float               @default(95.0) // Percentage
+  lastDowntime      DateTime?
+  totalRunHours     Float               @default(0)
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  active            Boolean             @default(true)
+  
+  // Relations
+  skuCompatibility  ProductionLineSKU[]
+  scheduleBlocks    ScheduleBlock[]
+
+  @@index([code])
+  @@index([status])
+}
+
+// Line-SKU Compatibility
+model ProductionLineSKU {
+  id                String          @id @default(cuid())
+  lineId            String
+  line              ProductionLine  @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  skuId             String
+  sku               SKU             @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  
+  // Line-specific rates
+  actualRate        Float           // May differ from SKU standard
+  efficiency        Float           @default(0.85)
+  
+  // Setup requirements
+  setupTime         Int             @default(0)
+  minRunTime        Int?            // Minimum economical run
+  maxRunTime        Int?            // Maximum before maintenance
+  
+  // Constraints
+  preferredSequence Int?            // Preferred order in schedule
+  restrictions      Json?           // Time/shift restrictions
+  
+  lastRun           DateTime?
+  totalRuns         Int             @default(0)
+  avgOEE            Float?
+  
+  @@unique([lineId, skuId])
+  @@index([lineId])
+  @@index([skuId])
+}
+
+// Production Order
+model ProductionOrder {
+  id            String          @id @default(cuid())
+  orderNumber   String          @unique
+  sku           SKU             @relation(fields: [skuId], references: [id])
+  skuId         String
+  quantity      Float
+  quantityUnit  String          // EA, CS, KG, etc
+  priority      Int             @default(5) // 1-10 scale
+  dueDate       DateTime
+  customerName  String?
+  customerPO    String?
+  status        OrderStatus
+  
+  // Planning fields
+  earliestStart DateTime?
+  latestStart   DateTime?
+  frozen        Boolean         @default(false) // Cannot be moved
+  
+  scheduleBlocks ScheduleBlock[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([status, dueDate])
+  @@index([skuId])
+  @@index([priority])
+  @@index([orderNumber])
+}
+
+// Schedule (container for blocks)
+model Schedule {
+  id            String          @id @default(cuid())
+  name          String
+  startDate     DateTime
+  endDate       DateTime
+  status        ScheduleStatus  @default(DRAFT)
+  
+  // Optimization metadata
+  optimizationAlgorithm String?
+  optimizationRunTime   Float?  // seconds
+  optimizationObjective String?
+  optimizationConfidence Float? // 0-1
+  
+  blocks        ScheduleBlock[]
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  createdBy     String          @default("system")
+  lastModifiedBy String         @default("system")
+  version       Int             @default(1)
+  
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+// Schedule Block - A production run on a line
+model ScheduleBlock {
+  id            String          @id @default(cuid())
+  orderId       String
+  order         ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lineId        String
+  line          ProductionLine  @relation(fields: [lineId], references: [id])
+  scheduleId    String?
+  schedule      Schedule?       @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  
+  // Timing
+  startTime     DateTime
+  endTime       DateTime
+  duration      Int             // Total duration in minutes
+  setupStart    DateTime?       // Changeover start
+  productionStart DateTime?     // Actual production start
+  
+  // Changeover tracking
+  changeoverType ChangeoverComplexity?
+  changeoverMinutes Int?
+  previousSKU   String?         // SKU code of previous block
+  previousSKUId String?
+  
+  status        BlockStatus     @default(PLANNED)
+  actualStart   DateTime?
+  actualEnd     DateTime?
+  actualQuantity Float?
+  
+  // Performance
+  targetRate    Float?
+  actualRate    Float?
+  oee           Float?
+  
+  // Metadata
+  notes         String?
+  color         String?         // For UI visualization
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([lineId, startTime])
+  @@index([status])
+  @@index([orderId])
+  @@index([scheduleId])
+}
+
+// Changeover Actual Records (for ML learning)
+model ChangeoverActual {
+  id                String   @id @default(cuid())
+  fromSKUId         String
+  toSKUId           String
+  actualMinutes     Int
+  lineId            String
+  timestamp         DateTime
+  notes             String?
+  operatorId        String?
+  variance          Float?   // Difference from expected
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([fromSKUId, toSKUId])
+  @@index([lineId])
+  @@index([timestamp])
+}
+
+// Audit Log
+model AuditLog {
+  id                String   @id @default(cuid())
+  userId            String
+  userName          String
+  action            String   // CREATE, UPDATE, DELETE
+  entityType        String   // SKU, ORDER, SCHEDULE, etc
+  entityId          String
+  changes           Json?    // Before/after values
+  timestamp         DateTime @default(now())
+  ipAddress         String?
+  userAgent         String?
+  
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}
+
+// User (for tracking, Clerk handles auth)
+model User {
+  id                String   @id // Clerk user ID
+  email             String   @unique
+  name              String
+  role              String   @default("user") // admin, planner, viewer
+  organizationId    String?
+  active            Boolean  @default(true)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime?
+  
+  @@index([organizationId])
+  @@index([email])
+}
